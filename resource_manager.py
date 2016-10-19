@@ -65,9 +65,9 @@ current_work_items = {}
 # TODO: allow per resource config along with master config
 config = {
             "read_reqs": 96, # some multiple of the available worker threads in DVID
-            "read_data": 200, # in MBs
+            "read_data": 200000000, # in bytess
             "write_reqs": 96, # some multiple of the available worker threads in DVID
-            "write_data": 150 # in MBs
+            "write_data": 150000000 # in bytes
          }
 
 clientid = 0 # increment for each resource request
