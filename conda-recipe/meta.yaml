@@ -1,0 +1,28 @@
+package:
+    name: dvid-resource-manager
+
+  # If we're using a non-tagged revision, append '.postN' to the version
+  {% if GIT_DESCRIBE_NUMBER|int != 0 %}
+    version: {{GIT_DESCRIBE_TAG}}.post{{GIT_DESCRIBE_NUMBER}}
+  {% else %}
+    version: {{GIT_DESCRIBE_TAG}}
+  {% endif %}
+
+source:
+  path: ../
+
+build:
+  number: 0
+  string: {{PKG_BUILDNUM}}_g{{GIT_FULL_HASH[:7]}}
+  
+  noarch: generic # Change this if you add any python files besides the main one in PREFIX/bin
+
+requirements:
+  run:
+    - python 2.7*  
+    - pyzmq
+
+about:
+  home: https://github.com/janelia-flyem/DVIDResourceManager
+  license: BSD (3-clause)
+  summary: A simple server to manage large-scale batch requests to DVID.
