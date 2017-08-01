@@ -19,7 +19,7 @@ build:
 
 requirements:
   run:
-    - python 2.7*  
+    - python {{PY_VER}}*  
     - pyzmq
 
 about:
