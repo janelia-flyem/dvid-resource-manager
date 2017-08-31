@@ -130,7 +130,7 @@ class ResourceManagerServer(object):
                 else:
                     # republish in case dropped
                     for cid in publish_list:
-                        pub_socket.send("%d %d" % (cid, 1))
+                        pub_socket.send(b"%d %d" % (cid, 1))
                     continue
         
             # process request
@@ -159,7 +159,7 @@ class ResourceManagerServer(object):
                     cid = self.find_work()
                     if cid != -1:
                         publish_list.add(cid)
-                        pub_socket.send("%d %d" % (cid, 1))
+                        pub_socket.send(b"%d %d" % (cid, 1))
                     else:
                         break 
             elif request["type"] == "config":
