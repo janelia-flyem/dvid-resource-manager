@@ -28,6 +28,10 @@ import json
 import argparse
 from collections import deque
 
+# Terminate results in normal shutdown
+import signal
+signal.signal(signal.SIGTERM, lambda signum, stack_frame: sys.exit(0))
+
 import zmq
 
 # poll delay when un-acked pub 
@@ -67,8 +71,8 @@ def main():
 
     try:
         server.run()
-    except KeyboardInterrupt:
-        pass
+    except (KeyboardInterrupt, SystemExit):
+        print("Resource manager killed via external signal.")
 
 
 class ResourceManagerServer(object):
