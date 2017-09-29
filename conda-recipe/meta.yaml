@@ -18,11 +18,15 @@ build:
   noarch: generic # Change this if you add any python files besides the main one in PREFIX/bin
 
 requirements:
+  build:
+    - python {{PY_VER}}*
+    - setuptools
+
   run:
-    - python {{PY_VER}}*  
+    - python {{PY_VER}}*
     - pyzmq
 
 about:
   home: https://github.com/janelia-flyem/DVIDResourceManager
   license: BSD (3-clause)
-  summary: A simple server to manage large-scale batch requests to DVID.
+  summary: A simple server to manage large-scale batch requests to DVID (or other resources).
