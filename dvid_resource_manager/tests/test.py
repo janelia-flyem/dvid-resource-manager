@@ -1,9 +1,10 @@
+import os
 import sys
 import json
-import unittest
-import subprocess
 import time
+import unittest
 import threading
+import subprocess
 
 import dvid_resource_manager.server
 from dvid_resource_manager.client import ResourceManagerClient
@@ -24,13 +25,13 @@ def with_server(config_updates):
     
     def decorator(func):
         def wrapper( *args, **kwargs ):
-            server_config_path = '/tmp/driver-resource-server-config.json'
+            server_config_path = '/tmp/test-resource-server-config.json'
             with open(server_config_path, 'w') as f:
                 json.dump(server_config, f)
     
             server_script = dvid_resource_manager.server.__file__
             cmd = f"{sys.executable} {server_script} {SERVER_PORT} --config-file={server_config_path} --debug"
-            server_process = subprocess.Popen(cmd, stderr=subprocess.STDOUT, shell=True)
+            server_process = subprocess.Popen(cmd, shell=True)
 
             try:
                 func(*args, **kwargs)
@@ -42,12 +43,18 @@ def with_server(config_updates):
                     time.sleep(0.1)
                     assert server_process.poll() is not None, \
                         "Server process did not respond to SIGTERM"
+                os.unlink(server_config_path)
         return wrapper
     return decorator
 
 
 class Test(unittest.TestCase):
-
+    ##
+    ## TODO: This test suite does not check the following:
+    ##       - data size limits
+    ##       - server re-configuration
+    ##
+    
     @with_server({"write_reqs": 2})
     def test_basic(self):
         """
@@ -102,8 +109,8 @@ class Test(unittest.TestCase):
         
         task_started = threading.Event()
         def long_task():
-            task_started.set()
             with client_1.access_context( resource, True, 1, 1000 ):
+                task_started.set()
                 time.sleep(DELAY)
 
         start = time.time()
