@@ -12,6 +12,10 @@ class ResourceManagerClient:
         >>> client = ResourceManagerClient(resource_manager_server_ip, port)
         >>> with client.access_context( data_server_ip, False, 1, volume_bytes ):
         ...    send_volume(data_server_ip, my_volume)
+
+    Note: This class is NOT threadsafe, due to the way it uses zeromq.
+          If you need to use multiple threads, create a separate
+          ResourceManagerClient instance for each thread.
     """
 
     def __init__(self, server_ip, server_port, _debug=False):
@@ -26,13 +30,13 @@ class ResourceManagerClient:
         self._commsocket.connect(f'tcp://{server_ip}:{server_port}')
         self._debug = _debug
 
-    def access_context(self, resource_name, is_read, numopts, data_size):
+    def access_context(self, resource_name, is_read, num_reqs, data_size):
         """
         Primary API function. (See usage above.)
         Returns a contextmanager object.
         While the context is active, access is granted to the the requested resource.  
         """
-        return ResourceManagerClient.AccessContext(self, resource_name, is_read, numopts, data_size)
+        return ResourceManagerClient.AccessContext(self, resource_name, is_read, num_reqs, data_size)
 
     def close(self):
         # Note: Docs say that destroy() is not threadsafe, so it's not safe to
