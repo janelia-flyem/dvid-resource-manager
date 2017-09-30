@@ -87,14 +87,12 @@ class Test(unittest.TestCase):
 
         th.join()
 
-    @with_server( { "write_reqs": 2, "read_reqs": 2 } )
+    @with_server( { "write_reqs": 1, "read_reqs": 1 } )
     def test_parallel_read_write_access(self):
         """
         Verify that the server DOES grant simultaneous access
         to two clients if one is reading and the other is writing,
-        as long as neither is at capacity already.
-        
-        Note: The server rejects all requests if either read OR write is already at capacity.
+        as long as neither is over capacity already.
         """
         resource = 'my-resource'
         DELAY = 0.5

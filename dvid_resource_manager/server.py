@@ -25,6 +25,7 @@ are independent.  It might make sense to make concurrent requests limits a serve
 
 import sys
 import json
+import copy
 import argparse
 from collections import deque
 
@@ -209,10 +210,18 @@ class ResourceManagerServer(object):
     # resource is not available if any of the resources are completely used
     # probably overly simplistic but usually calls are in batches of reads and writes separately
     def is_available(self, request, curr_stats):
-        return (    curr_stats.read_reqs < self.config["read_reqs"]
-                and curr_stats.read_data < self.config["read_data"]
-                and curr_stats.write_reqs < self.config["write_reqs"]
-                and curr_stats.write_data < self.config["write_data"] )
+        new_stats = copy.copy(curr_stats)
+        if request["read"]:
+            new_stats.read_reqs += request["numopts"]
+            new_stats.read_data += request["datasize"]
+        else:
+            new_stats.write_reqs += request["numopts"]
+            new_stats.write_data += request["datasize"]
+        
+        return (    new_stats.read_reqs <= self.config["read_reqs"]
+                and new_stats.read_data <= self.config["read_data"]
+                and new_stats.write_reqs <= self.config["write_reqs"]
+                and new_stats.write_data <= self.config["write_data"] )
     
     # grab next resource (just grab oldest one)
     # TODO use priority to sort
