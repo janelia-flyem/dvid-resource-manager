@@ -1,0 +1,1 @@
+python -m dvid_resource_manager.tests.test
