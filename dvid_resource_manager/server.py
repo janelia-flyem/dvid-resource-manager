@@ -177,7 +177,7 @@ class ResourceManagerServer(object):
                             break 
                 elif request["type"] == "config":
                     # reset config
-                    config = request["config"] 
+                    self.config = request["config"]
                     comm_socket.send_json(request["config"])
                 else:
                     comm_socket.send_json({})
