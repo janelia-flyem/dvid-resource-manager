@@ -28,11 +28,15 @@ import json
 import argparse
 from collections import deque
 
+import jsonschema
+
 # Terminate results in normal shutdown
 import signal
 signal.signal(signal.SIGTERM, lambda signum, stack_frame: sys.exit(0))
 
 import zmq
+
+from dvid_resource_manager.schemas import ReceivedMessageSchema
 
 # poll delay when un-acked pub 
 PUBDELAY = 2000 # ms
@@ -48,6 +52,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("comm_port", type=int, help="Port to use for listening . The next port (+1) will also be used, for publishing.")
     parser.add_argument("--config-file")
+    parser.add_argument("--debug", action='store_true')
     args = parser.parse_args()
 
     comm_port = args.comm_port
@@ -70,10 +75,9 @@ def main():
     server = ResourceManagerServer(comm_port, pub_port, config)
 
     try:
-        server.run()
+        server.run(args.debug)
     except (KeyboardInterrupt, SystemExit):
         print("Resource manager killed via external signal.")
-
 
 class ResourceManagerServer(object):
 
@@ -91,7 +95,7 @@ class ResourceManagerServer(object):
         self.pub_port = pub_port
         self.config = config
 
-    def run(self):
+    def run(self, debug):
         self.resource_limits = {}
         
         # outstanding work (client id -> request)
@@ -119,60 +123,67 @@ class ResourceManagerServer(object):
         
         publish_list = set()
 
-        # infinite server loop
-        while True:
-            # get next request
-            request = None
-            if len(publish_list) == 0:
-                # block on next request
-                request = comm_socket.recv_json()
-            else:
-                # outstanding pubs not ack'd, poll for PUBDELAY and repub
-                res = poller.poll(PUBDELAY)        
-                if len(res) > 0:
+        try:
+
+            # infinite server loop
+            while True:
+                # get next request
+                request = None
+                if len(publish_list) == 0:
+                    # block on next request
                     request = comm_socket.recv_json()
                 else:
-                    # republish in case dropped
-                    for cid in publish_list:
-                        pub_socket.send(b"%d %d" % (cid, 1))
-                    continue
-        
-            # process request
-            if request["type"] == "request":
-                # request for resource
-                request["id"] = clientid
-                clientid += 1
-                if self.request_resource(request):
-                    # resource available
-                    comm_socket.send_json({"available": True, "id": request["id"]})
-                else:
-                    # give everything the same priority now
-                    # TODO: allow optional priority and sort work items accordingly
-                    self.work_items.append((0, request))
-                    comm_socket.send_json({"available": False, "id": request["id"]})
-            elif request["type"] == "hold":
-                # grab resource, removed from pub list
-                publish_list.remove(request["id"])
-                comm_socket.send_json({})
-            elif request["type"] == "release":
-                self.finish_work(request["id"])
-                comm_socket.send_json({})
-        
-                # find work and publish
-                while len(self.work_items) > 0: 
-                    cid = self.find_work()
-                    if cid != -1:
-                        publish_list.add(cid)
-                        pub_socket.send(b"%d %d" % (cid, 1))
+                    # outstanding pubs not ack'd, poll for PUBDELAY and repub
+                    res = poller.poll(PUBDELAY)        
+                    if len(res) > 0:
+                        request = comm_socket.recv_json()
                     else:
-                        break 
-            elif request["type"] == "config":
-                # reset config
-                config = request["config"] 
-                comm_socket.send_json(request["config"])
-            else:
-                comm_socket.send_json({})
-                raise Exception("Unknown request type")
+                        # republish in case dropped
+                        for cid in publish_list:
+                            pub_socket.send(b"%d %d" % (cid, 1))
+                        continue
+            
+                if debug:
+                    jsonschema.validate(request, ReceivedMessageSchema)
+                
+                # process request
+                if request["type"] == "request":
+                    # request for resource
+                    request["id"] = clientid
+                    clientid += 1
+                    if self.request_resource(request):
+                        # resource available
+                        comm_socket.send_json({"available": True, "id": request["id"]})
+                    else:
+                        # give everything the same priority now
+                        # TODO: allow optional priority and sort work items accordingly
+                        self.work_items.append((0, request))
+                        comm_socket.send_json({"available": False, "id": request["id"]})
+                elif request["type"] == "hold":
+                    # grab resource, removed from pub list
+                    publish_list.remove(request["id"])
+                    comm_socket.send_json({})
+                elif request["type"] == "release":
+                    self.finish_work(request["id"])
+                    comm_socket.send_json({})
+            
+                    # find work and publish
+                    while len(self.work_items) > 0: 
+                        cid = self.find_work()
+                        if cid != -1:
+                            publish_list.add(cid)
+                            pub_socket.send(b"%d %d" % (cid, 1))
+                        else:
+                            break 
+                elif request["type"] == "config":
+                    # reset config
+                    config = request["config"] 
+                    comm_socket.send_json(request["config"])
+                else:
+                    comm_socket.send_json({})
+                    raise Exception("Unknown request type")
+        finally:
+            context.destroy()
 
     # TODO proper error handling, json schema request
     # { type=request, resource, read=true|false, numopts, datasize, id (set by server) }

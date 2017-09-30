@@ -25,6 +25,7 @@ requirements:
   run:
     - python {{PY_VER}}*
     - pyzmq
+    - jsonschema
 
 about:
   home: https://github.com/janelia-flyem/DVIDResourceManager
