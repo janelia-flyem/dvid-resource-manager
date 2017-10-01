@@ -105,9 +105,9 @@ class ResourceManagerClient:
             self.client = client
             self.request_id = None
             self.resource_name = resource_name
-            self.is_read = is_read
-            self.num_reqs = num_reqs
-            self.data_size = data_size
+            self.is_read = bool(is_read)
+            self.num_reqs = int(num_reqs)
+            self.data_size = int(data_size)
 
         def __enter__(self):
             self.request_id, success = self.client._attempt_acquire(self.resource_name, self.is_read, self.num_reqs, self.data_size)
