@@ -77,8 +77,8 @@ def main():
 
     try:
         server.run(args.debug)
-    except (KeyboardInterrupt, SystemExit):
-        print("Resource manager killed via external signal.")
+    except (KeyboardInterrupt, SystemExit) as ex:
+        print("Resource manager killed via external signal: {}".format(ex.__class__.__name__))
 
 class ResourceManagerServer(object):
 

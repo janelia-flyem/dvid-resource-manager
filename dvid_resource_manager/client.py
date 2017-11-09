@@ -1,10 +1,43 @@
-from contextlib import closing
+from contextlib import closing, contextmanager
 import jsonschema
 import zmq
 
 from dvid_resource_manager.schemas import RequestMessageSchema, HoldMessageSchema, ReleaseMessageSchema
 
-class ResourceManagerClient:
+def ResourceManagerClient(server_ip, server_port, _debug=False):
+    """
+    Returns a _ResourceManagerClient object, or a _DummyClient object in the case of an empty server_ip.
+
+    Helps avoid boilerplate code if-statements like this:
+    
+        if resource_manager_server_ip:
+            client = ResourceManagerClient(resource_manager_server_ip, port)
+            with client.access_context( data_server_ip, False, 1, volume_bytes ):
+                send_data(...)
+        else:
+            send_data(...)
+    
+    Instead, just write this:
+
+        client = ResourceManagerClient(resource_manager_server_ip, port)
+        with client.access_context( data_server_ip, False, 1, volume_bytes ):
+            send_data(...)
+    """
+    if server_ip:
+        return _ResourceManagerClient(server_ip, server_port, _debug=False)
+    else:
+        return _DummyClient()
+
+class _DummyClient:
+    """
+    Mimics the public API of _ResourceManagerClient, but otherwise does nothing.
+    """
+    @contextmanager
+    def access_context(self, *args, **kwargs):
+        yield
+    
+    
+class _ResourceManagerClient:
     """
     Usage:
     
@@ -36,7 +69,7 @@ class ResourceManagerClient:
         Returns a contextmanager object.
         While the context is active, access is granted to the the requested resource.  
         """
-        return ResourceManagerClient.AccessContext(self, resource_name, is_read, num_reqs, data_size)
+        return _ResourceManagerClient.AccessContext(self, resource_name, is_read, num_reqs, data_size)
 
     def close(self):
         # Note: Docs say that destroy() is not threadsafe, so it's not safe to

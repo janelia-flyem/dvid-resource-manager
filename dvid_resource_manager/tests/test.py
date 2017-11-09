@@ -124,5 +124,9 @@ class Test(unittest.TestCase):
 
         th.join()
 
+    def test_dummy_client(self):
+        with ResourceManagerClient("", "").access_context():
+            assert True
+
 if __name__ == "__main__":
     unittest.main()
