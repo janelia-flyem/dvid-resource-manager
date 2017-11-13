@@ -49,6 +49,9 @@ class _ResourceManagerClient:
     Note: This class is NOT threadsafe, due to the way it uses zeromq.
           If you need to use multiple threads, create a separate
           ResourceManagerClient instance for each thread.
+    
+    Pickling: This class can be pickled, but it's an error to do
+              so while an AccessContext is active.
     """
 
     def __init__(self, server_ip, server_port, _debug=False):
@@ -57,11 +60,14 @@ class _ResourceManagerClient:
         """
         self.server_ip = server_ip
         self.server_port = server_port
+        self._debug = _debug
+        self._currently_accessing = False
+        self._initialize_zmq()
 
+    def _initialize_zmq(self):
         self._context = zmq.Context()
         self._commsocket = self._context.socket(zmq.REQ)
-        self._commsocket.connect(f'tcp://{server_ip}:{server_port}')
-        self._debug = _debug
+        self._commsocket.connect(f'tcp://{self.server_ip}:{self.server_port}')
 
     def access_context(self, resource_name, is_read, num_reqs, data_size):
         """
@@ -83,6 +89,20 @@ class _ResourceManagerClient:
     def __del__(self):
         if self._context is not None:
             self.close()
+
+    def __getstate__(self):
+        """
+        Pickle support.
+        """
+        assert not self._currently_accessing, "Not allowed to pickle _ResourceManagerClient while an AcessContext is active."
+        d = self.__dict__.copy()
+        d['_context'] = None
+        d['_commsocket'] = None
+        return d
+    
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._initialize_zmq()
 
     def _attempt_acquire(self, resource_name, is_read, num_reqs, data_size):
         """
@@ -143,6 +163,8 @@ class _ResourceManagerClient:
             self.data_size = int(data_size)
 
         def __enter__(self):
+            assert not self.client._currently_accessing, "Not allowed to use AccessContext in parallel or (nested)"
+            self.client._currently_accessing = True
             self.request_id, success = self.client._attempt_acquire(self.resource_name, self.is_read, self.num_reqs, self.data_size)
             if not success:
                 self.client._wait_for_acquire(self.request_id)
@@ -150,4 +172,4 @@ class _ResourceManagerClient:
         
         def __exit__(self, *_args):
             self.client._release(self.request_id)
-
+            self.client._currently_accessing = False

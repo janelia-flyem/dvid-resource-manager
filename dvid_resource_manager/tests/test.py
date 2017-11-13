@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import time
+import pickle
 import unittest
 import threading
 import subprocess
@@ -128,5 +129,38 @@ class Test(unittest.TestCase):
         with ResourceManagerClient("", "").access_context():
             assert True
 
+    @with_server({"write_reqs": 2})
+    def test_pickle(self):
+        """
+        Copy the client via pickling and then use the copy after unpickling.
+        """
+        resource = 'my-resource'
+        client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
+        with client.access_context( resource, False, 1, 1000 ):
+            pass
+        
+        pickled_client = pickle.dumps(client)
+        unpickled_client = pickle.loads(pickled_client)
+        
+        with unpickled_client.access_context( resource, False, 1, 1000 ):
+            pass
+
+    @with_server({"write_reqs": 2})
+    def test_pickle_fails_during_access_context(self):
+        """
+        Pickling is forbidden while an access context is active.
+        Verify that an exception is raised.
+        """
+        resource = 'my-resource'
+        client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
+
+        try:
+            with client.access_context( resource, False, 1, 1000 ):
+                _pickled_client = pickle.dumps(client)
+        except AssertionError:
+            pass
+        else:
+            assert False, "Expected pickle to fail!"
+        
 if __name__ == "__main__":
     unittest.main()
