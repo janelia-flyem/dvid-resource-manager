@@ -32,6 +32,9 @@ class _DummyClient:
     """
     Mimics the public API of _ResourceManagerClient, but otherwise does nothing.
     """
+    server_ip = ""
+    server_port = 0
+
     @contextmanager
     def access_context(self, *args, **kwargs):
         yield
