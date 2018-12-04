@@ -180,6 +180,8 @@ class ResourceManagerServer(object):
                     # reset config
                     self.config = request["config"]
                     comm_socket.send_json(request["config"])
+                elif request["type"] == "read-config":
+                    comm_socket.send_json({"type": "read-config", "config": self.config})
                 else:
                     comm_socket.send_json({})
                     raise Exception("Unknown request type")

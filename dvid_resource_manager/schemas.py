@@ -56,6 +56,13 @@ ConfigMessageSchema = {
     }
 }
 
+ReadConfigMessageSchema = {
+    "required": ["type"],
+    "properties": {
+        "type": { "type": "string", "enum": ["read-config"] }
+    }
+}
+
 ReceivedMessageSchema = {
     "$schema": "http://json-schema.org/schema#",
     "title": "Request permission to access a resource",
@@ -66,7 +73,8 @@ ReceivedMessageSchema = {
     "oneOf": [ RequestMessageSchema,
                HoldMessageSchema,
                ReleaseMessageSchema,
-               ConfigMessageSchema ]
+               ConfigMessageSchema,
+               ReadConfigMessageSchema ]
 }
 
 

@@ -2,7 +2,7 @@ from contextlib import closing, contextmanager
 import jsonschema
 import zmq
 
-from dvid_resource_manager.schemas import RequestMessageSchema, HoldMessageSchema, ReleaseMessageSchema
+from dvid_resource_manager.schemas import RequestMessageSchema, HoldMessageSchema, ReleaseMessageSchema, ConfigSchema
 
 def ResourceManagerClient(server_ip, server_port, _debug=False):
     """
@@ -80,6 +80,21 @@ class _ResourceManagerClient:
         """
         return _ResourceManagerClient.AccessContext(self, resource_name, is_read, num_reqs, data_size)
 
+    def reconfigure_server(self, config):
+        jsonschema.validate(config, ConfigSchema)
+        self._commsocket.send_json( { "type": "config",
+                                      "config": config } )
+        response = self._commsocket.recv_json()
+        if response != config:
+            raise RuntimeError("Server failed to apply the new config")
+
+    def read_config(self):
+        self._commsocket.send_json( { "type": "read-config" } )
+        response = self._commsocket.recv_json()
+        if response["type"] != "read-config":
+            raise RuntimeError(f"Bad response from resource manager server: {response}")
+        return response["config"]
+
     def close(self):
         # Note: Docs say that destroy() is not threadsafe, so it's not safe to
         #       call this if zeromq sockets are being used in any other threads.
@@ -109,8 +124,9 @@ class _ResourceManagerClient:
 
     def _attempt_acquire(self, resource_name, is_read, num_reqs, data_size):
         """
-        Acquire the given resource from the resource manager.
-        Blocks until the resource is available.
+        Attempt to acquire the given resource from the resource manager.
+        If it is currently available, we will be the owner (we acquired it).
+        if it isn't, we will have to wait, using the ID in the server response.
         
         Returns (request_id, acquired)
         """

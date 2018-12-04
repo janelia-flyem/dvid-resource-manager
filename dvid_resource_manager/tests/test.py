@@ -53,7 +53,6 @@ class Test(unittest.TestCase):
     ##
     ## TODO: This test suite does not check the following:
     ##       - data size limits
-    ##       - server re-configuration
     ##
     
     @with_server({"write_reqs": 2})
@@ -63,6 +62,7 @@ class Test(unittest.TestCase):
         """
         resource = 'my-resource'
         client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
+        assert client.read_config()["write_reqs"] == 2
         with client.access_context( resource, False, 1, 1000 ):
             pass
 
@@ -161,6 +161,19 @@ class Test(unittest.TestCase):
             pass
         else:
             assert False, "Expected pickle to fail!"
+
+
+    @with_server({})
+    def test_reconfigure(self):
+        client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
+        orig_config = client.read_config()
         
+        new_config = orig_config.copy()
+        new_config["read_reqs"] = 123
+        new_config["write_reqs"] = 456
+        
+        client.reconfigure_server(new_config)
+        assert client.read_config() == new_config
+
 if __name__ == "__main__":
     unittest.main()
