@@ -8,7 +8,7 @@ import threading
 import subprocess
 
 import dvid_resource_manager.server
-from dvid_resource_manager.client import ResourceManagerClient
+from dvid_resource_manager.client import ResourceManagerClient, TimeoutError
 
 SERVER_PORT = 3000
 
@@ -179,6 +179,16 @@ class Test(unittest.TestCase):
          
         client.reconfigure_server(new_config)
         assert client.read_config() == new_config
+
+
+    def test_8_timeout(self):
+        client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
+        try:
+            client.read_config()
+        except TimeoutError:
+            return
+        raise AssertionError("Expected a timeout error")
+
 
 if __name__ == "__main__":
     unittest.main()

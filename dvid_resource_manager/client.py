@@ -4,6 +4,9 @@ import zmq
 
 from dvid_resource_manager.schemas import RequestMessageSchema, HoldMessageSchema, ReleaseMessageSchema, ConfigSchema
 
+class TimeoutError(RuntimeError):
+    pass
+
 def ResourceManagerClient(server_ip, server_port, _debug=False):
     """
     Returns a _ResourceManagerClient object, or a _DummyClient object in the case of an empty server_ip.
@@ -71,6 +74,8 @@ class _ResourceManagerClient:
         self._context = zmq.Context()
         self._commsocket = self._context.socket(zmq.REQ)
         self._commsocket.connect(f'tcp://{self.server_ip}:{self.server_port}')
+        self._poller = zmq.Poller()
+        self._poller.register(self._commsocket, zmq.POLLIN)
 
     def access_context(self, resource_name, is_read, num_reqs, data_size):
         """
@@ -84,13 +89,13 @@ class _ResourceManagerClient:
         jsonschema.validate(config, ConfigSchema)
         self._commsocket.send_json( { "type": "config",
                                       "config": config } )
-        response = self._commsocket.recv_json()
+        response = self._recv_json_safe()
         if response != config:
             raise RuntimeError("Server failed to apply the new config")
 
     def read_config(self):
         self._commsocket.send_json( { "type": "read-config" } )
-        response = self._commsocket.recv_json()
+        response = self._recv_json_safe()
         if response["type"] != "read-config":
             raise RuntimeError(f"Bad response from resource manager server: {response}")
         return response["config"]
@@ -100,7 +105,9 @@ class _ResourceManagerClient:
         #       call this if zeromq sockets are being used in any other threads.
         assert self._commsocket is not None
         assert self._context is not None
+        self._commsocket.setsockopt(zmq.LINGER, 1000) # timeout of 1 second
         self._commsocket.close()
+        self._poller.unregister(self._commsocket)
         self._context.term()
         self._context = None
 
@@ -116,12 +123,24 @@ class _ResourceManagerClient:
         d = self.__dict__.copy()
         d['_context'] = None
         d['_commsocket'] = None
+        d['_poller'] = None
         return d
     
     def __setstate__(self, state):
         self.__dict__.update(state)
         self._initialize_zmq()
 
+    def _recv_json_safe(self, timeout_ms=2000):
+        """
+        Receive a json message from the socket, or raise an
+        exception in case of a timeout (rather than hanging indefinitely).
+        """
+        events = dict(self._poller.poll(timeout_ms))
+        if events.get(self._commsocket, None):
+            return self._commsocket.recv_json()
+        else:
+            raise TimeoutError(f"Timed out after {timeout_ms/1000} seconds")
+    
     def _attempt_acquire(self, resource_name, is_read, num_reqs, data_size):
         """
         Attempt to acquire the given resource from the resource manager.
@@ -141,7 +160,7 @@ class _ResourceManagerClient:
             jsonschema.validate(req_data, RequestMessageSchema)
         
         self._commsocket.send_json( req_data )
-        response = self._commsocket.recv_json()
+        response = self._recv_json_safe()
         return (response["id"], response["available"])
     
     def _wait_for_acquire(self, request_id):
@@ -159,14 +178,14 @@ class _ResourceManagerClient:
             jsonschema.validate(msg, HoldMessageSchema)
 
         self._commsocket.send_json( msg  )
-        self._commsocket.recv_json()
+        self._recv_json_safe(None) # No timeout here: We could be waiting for a long time.
 
     def _release(self, request_id):
         msg = { "type": "release", "id": request_id }
         if self._debug:
             jsonschema.validate(msg, ReleaseMessageSchema)
         self._commsocket.send_json( msg )
-        self._commsocket.recv_json()
+        self._recv_json_safe()
 
     class AccessContext:
         """
