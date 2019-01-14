@@ -1,4 +1,7 @@
+import os
+import threading
 from contextlib import closing, contextmanager
+
 import jsonschema
 import zmq
 
@@ -7,11 +10,14 @@ from dvid_resource_manager.schemas import RequestMessageSchema, HoldMessageSchem
 class TimeoutError(RuntimeError):
     pass
 
-def ResourceManagerClient(server_ip, server_port, _debug=False):
-    """
-    Returns a _ResourceManagerClient object, or a _DummyClient object in the case of an empty server_ip.
 
-    Helps avoid boilerplate code if-statements like this:
+class ResourceManagerClient:
+    """
+    Manages multiple low-level _ResourceManagerClient instances,
+    one for each thread in which this object is used.
+    
+    Also, if server_ip is None, then a _DummyClient is used.
+    That helps avoid boilerplate if-statements like this:
     
         if resource_manager_server_ip:
             client = ResourceManagerClient(resource_manager_server_ip, port)
@@ -26,10 +32,48 @@ def ResourceManagerClient(server_ip, server_port, _debug=False):
         with client.access_context( data_server_ip, False, 1, volume_bytes ):
             send_data(...)
     """
-    if server_ip:
-        return _ResourceManagerClient(server_ip, server_port, _debug=False)
-    else:
-        return _DummyClient()
+    def __init__(self, server_ip, server_port, _debug=False):
+        self.server_ip = server_ip
+        self.server_port = server_port
+        self._debug = _debug
+        self._clients = {}
+    
+    def _get_client(self):
+        if not self.server_ip:
+            return _DummyClient()
+
+        thread_id = threading.current_thread().ident
+        pid = os.getpid()
+    
+        try:
+            client = self._clients[(thread_id, pid)]
+        except KeyError:
+            client = _ResourceManagerClient(self.server_ip, self.server_port, self._debug)
+            self._clients[(thread_id, pid)] = client
+    
+        return client
+    
+    def access_context(self, resource_name, is_read, num_reqs, data_size):
+        return self._get_client().access_context(resource_name, is_read, num_reqs, data_size)
+    
+    def reconfigure_server(self, config):
+        return self._get_client().reconfigure_server(config)
+    
+    def read_config(self):
+        return self._get_client().read_config()
+    
+    def close(self):
+        for client in self._clients.values():
+            client.close()
+
+    def __getstate__(self):
+        """
+        Pickle support
+        """
+        d = self.__dict__.copy()
+        d['_clients'] = {}
+        return d
+
 
 class _DummyClient:
     """
@@ -119,7 +163,8 @@ class _ResourceManagerClient:
         """
         Pickle support.
         """
-        assert not self._currently_accessing, "Not allowed to pickle _ResourceManagerClient while an AcessContext is active."
+        assert not self._currently_accessing, \
+            "Not allowed to pickle _ResourceManagerClient while an AcessContext is active."
         d = self.__dict__.copy()
         d['_context'] = None
         d['_commsocket'] = None

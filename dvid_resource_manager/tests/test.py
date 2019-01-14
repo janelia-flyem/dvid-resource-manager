@@ -98,8 +98,11 @@ class Test(unittest.TestCase):
     @with_server( { "write_reqs": 1, "read_reqs": 1 } )
     def test_3_parallel_read_write_access(self):
         """
-        Verify that the server DOES grant simultaneous access
-        to two clients if one is reading and the other is writing,
+        Verify that a single client can be used from multiple threads
+        (since it creates low-level _ResourceManagerClient objects per-thread as needed).
+        
+        Also, verify that the server DOES grant simultaneous access
+        to two threads if one is reading and the other is writing,
         as long as neither is over capacity already.
         """
         resource = 'my-resource'
@@ -110,12 +113,11 @@ class Test(unittest.TestCase):
         # Does the server need time to initialize?
         time.sleep(0.5)
         
-        client_1 = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
-        client_2 = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
+        client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
         
         task_started = threading.Event()
         def long_task():
-            with client_1.access_context( resource, True, 1, 1000 ):
+            with client.access_context( resource, True, 1, 1000 ):
                 task_started.set()
                 time.sleep(DELAY)
 
@@ -124,14 +126,14 @@ class Test(unittest.TestCase):
         th.start()
 
         task_started.wait()
-        with client_2.access_context( resource, False, 1, 1000 ):
+        with client.access_context( resource, False, 1, 1000 ):
             assert (time.time() - start) < DELAY, \
                 "The server seems to have incorrectly forbidden parallel access for reading and writing."
 
         th.join()
 
     def test_4_dummy_client(self):
-        with ResourceManagerClient("", "").access_context():
+        with ResourceManagerClient("", "").access_context('', False, 0, 0):
             assert True
  
     @with_server({"write_reqs": 2})
@@ -150,26 +152,8 @@ class Test(unittest.TestCase):
         with unpickled_client.access_context( resource, False, 1, 1000 ):
             pass
  
-    @with_server({"write_reqs": 2})
-    def test_6_pickle_fails_during_access_context(self):
-        """
-        Pickling is forbidden while an access context is active.
-        Verify that an exception is raised.
-        """
-        resource = 'my-resource'
-        client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
- 
-        try:
-            with client.access_context( resource, False, 1, 1000 ):
-                _pickled_client = pickle.dumps(client)
-        except AssertionError:
-            pass
-        else:
-            assert False, "Expected pickle to fail!"
- 
- 
     @with_server({})
-    def test_7_reconfigure(self):
+    def test_6_reconfigure(self):
         client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
         orig_config = client.read_config()
          
@@ -181,7 +165,7 @@ class Test(unittest.TestCase):
         assert client.read_config() == new_config
 
 
-    def test_8_timeout(self):
+    def test_7_timeout(self):
         client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
         try:
             client.read_config()
