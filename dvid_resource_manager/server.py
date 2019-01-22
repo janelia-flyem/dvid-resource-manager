@@ -186,7 +186,10 @@ class ResourceManagerServer(object):
                     comm_socket.send_json({})
                     raise Exception("Unknown request type")
         finally:
-            context.destroy()
+            comm_socket.setsockopt(zmq.LINGER, 1000) # timeout of 1 second
+            comm_socket.close()
+            poller.unregister(comm_socket)
+            context.term()
 
     # TODO proper error handling, json schema request
     # { type=request, resource, read=true|false, numopts, datasize, id (set by server) }
