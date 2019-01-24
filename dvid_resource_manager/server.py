@@ -26,14 +26,11 @@ are independent.  It might make sense to make concurrent requests limits a serve
 import sys
 import json
 import copy
+import signal
 import argparse
 from collections import deque
 
 import jsonschema
-
-# Terminate results in normal shutdown
-import signal
-signal.signal(signal.SIGTERM, lambda signum, stack_frame: sys.exit(0))
 
 import zmq
 
@@ -50,6 +47,9 @@ DEFAULT_CONFIG = {
 }
 
 def main():
+    # Terminate results in normal shutdown
+    signal.signal(signal.SIGTERM, lambda signum, stack_frame: sys.exit(0))
+
     parser = argparse.ArgumentParser()
     parser.add_argument("comm_port", type=int, help="Port to use for listening . The next port (+1) will also be used, for publishing.")
     parser.add_argument("--config-file")
