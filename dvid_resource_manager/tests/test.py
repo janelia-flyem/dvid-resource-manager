@@ -9,6 +9,7 @@ import subprocess
 
 import dvid_resource_manager.server
 from dvid_resource_manager.client import ResourceManagerClient, TimeoutError
+from dvid_resource_manager.tests.helpers import _test_multiprocess
 
 SERVER_PORT = 3000
 
@@ -173,6 +174,12 @@ class Test(unittest.TestCase):
             return
         raise AssertionError("Expected a timeout error")
 
+    @with_server({"read_reqs": 2, "write_reqs": 2})
+    def test_multiproc(self):
+        client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
+        _test_multiprocess(client)
+
 
 if __name__ == "__main__":
+    #sys.argv += ['Test.test_multiproc']
     unittest.main()
