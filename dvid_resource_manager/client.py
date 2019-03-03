@@ -246,11 +246,16 @@ class _ResourceManagerClient:
             self.data_size = int(data_size)
 
         def __enter__(self):
-            assert not self.client._currently_accessing, "Not allowed to use AccessContext in parallel or (nested)"
+            assert not self.client._currently_accessing, \
+                "Not allowed to use AccessContext in parallel or (nested)"
             self.client._currently_accessing = True
-            self.request_id, success = self.client._attempt_acquire(self.resource_name, self.is_read, self.num_reqs, self.data_size)
-            if not success:
-                self.client._wait_for_acquire(self.request_id)
+            try:
+                self.request_id, success = self.client._attempt_acquire(self.resource_name, self.is_read, self.num_reqs, self.data_size)
+                if not success:
+                    self.client._wait_for_acquire(self.request_id)
+            except:
+                self.client._currently_accessing = False
+                raise
             return self
         
         def __exit__(self, *_args):
