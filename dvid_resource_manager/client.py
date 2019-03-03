@@ -116,10 +116,31 @@ class _ResourceManagerClient:
 
     def _initialize_zmq(self):
         self._context = zmq.Context()
+        self._init_socket()
+    
+    def _init_socket(self):
         self._commsocket = self._context.socket(zmq.REQ)
         self._commsocket.connect(f'tcp://{self.server_ip}:{self.server_port}')
         self._poller = zmq.Poller()
         self._poller.register(self._commsocket, zmq.POLLIN)
+
+    def _close_socket(self):
+        # Note: Docs say that destroy() is not threadsafe, so it's not safe to
+        #       call this if zeromq sockets are being used in any other threads.
+        assert self._commsocket is not None
+        assert self._context is not None
+        self._commsocket.setsockopt(zmq.LINGER, 1000) # timeout of 1 second
+        self._commsocket.close()
+        self._poller.unregister(self._commsocket)
+
+    def close(self):
+        self._close_socket()
+        self._context.term()
+        self._context = None
+
+    def __del__(self):
+        if self._context is not None:
+            self.close()
 
     def access_context(self, resource_name, is_read, num_reqs, data_size):
         """
@@ -144,21 +165,6 @@ class _ResourceManagerClient:
             raise RuntimeError(f"Bad response from resource manager server: {response}")
         return response["config"]
 
-    def close(self):
-        # Note: Docs say that destroy() is not threadsafe, so it's not safe to
-        #       call this if zeromq sockets are being used in any other threads.
-        assert self._commsocket is not None
-        assert self._context is not None
-        self._commsocket.setsockopt(zmq.LINGER, 1000) # timeout of 1 second
-        self._commsocket.close()
-        self._poller.unregister(self._commsocket)
-        self._context.term()
-        self._context = None
-
-    def __del__(self):
-        if self._context is not None:
-            self.close()
-
     def __getstate__(self):
         """
         Pickle support.
@@ -179,11 +185,24 @@ class _ResourceManagerClient:
         """
         Receive a json message from the socket, or raise an
         exception in case of a timeout (rather than hanging indefinitely).
+        
+        timeout_ms:
+            How long the poller should wait to receive the reply from the server,
+            which might be busy with other clients and therefore take a while to respond.
+            When there are 1000 clients, a timeout of 2 seconds seems to be too short,
+            but 4 seconds is enough. For 2000 clients, 4 seconds is still too short.
         """
         events = dict(self._poller.poll(timeout_ms))
         if events.get(self._commsocket, None):
             return self._commsocket.recv_json()
         else:
+            # With paired REQ (client) and REP (server) sockets,
+            # It's forbidden to call recv again if you haven't received a reply.
+            # We must reinitialize the socket before trying again.
+            # http://zguide.zeromq.org/page%3aall#Client-Side-Reliability-Lazy-Pirate-Pattern
+            # http://zguide.zeromq.org/py:lpclient
+            self._close_socket()
+            self._init_socket()
             raise TimeoutError(f"Timed out after {timeout_ms/1000} seconds")
     
     def _attempt_acquire(self, resource_name, is_read, num_reqs, data_size):
