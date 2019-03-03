@@ -175,7 +175,7 @@ class _ResourceManagerClient:
         self.__dict__.update(state)
         self._initialize_zmq()
 
-    def _recv_json_safe(self, timeout_ms=2000):
+    def _recv_json_safe(self, timeout_ms=4000):
         """
         Receive a json message from the socket, or raise an
         exception in case of a timeout (rather than hanging indefinitely).
