@@ -19,11 +19,11 @@ build:
 
 requirements:
   build:
-    - python {{PY_VER}}*
+    - python {{ python }}*
     - setuptools
 
   run:
-    - python {{PY_VER}}*
+    - python {{ python }}*
     - pyzmq
     - jsonschema
 
