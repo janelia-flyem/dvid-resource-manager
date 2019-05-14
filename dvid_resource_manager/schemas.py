@@ -42,9 +42,9 @@ ConfigSchema = {
     "required": ["read_reqs", "read_data", "write_reqs", "write_data"],
     "properties": {
         "read_reqs":  { "type": "integer" },
-        "read_data":  { "type": "integer" },
+        "read_data":  { "type": "number" },
         "write_reqs": { "type": "integer" },
-        "write_data": { "type": "integer" }
+        "write_data": { "type": "number" }
     }
 }
 
