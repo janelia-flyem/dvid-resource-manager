@@ -1,0 +1,15 @@
+#
+# This is a conda build config file.
+#
+# For details on these settings, see:
+# https://docs.conda.io/projects/conda-build/en/latest/resources/variants.html
+#
+
+python:
+  - 3.7
+
+pin_run_as_build:
+  python: x.x
+
+CONDA_BUILD_SYSROOT:
+  - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.9.sdk
