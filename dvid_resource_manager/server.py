@@ -40,10 +40,10 @@ from dvid_resource_manager.schemas import ReceivedMessageSchema
 PUBDELAY = 2000 # ms
 
 DEFAULT_CONFIG = {
-    "read_reqs": 96, # some multiple of the available worker threads in DVID
-    "read_data": 200000000, # in bytes
+    "read_reqs": 128, # some multiple of the available worker threads in DVID
+    "read_data": 1e12, # in bytes
     "write_reqs": 96, # some multiple of the available worker threads in DVID
-    "write_data": 150000000 # in bytes
+    "write_data": 128 # in bytes
 }
 
 def main():
