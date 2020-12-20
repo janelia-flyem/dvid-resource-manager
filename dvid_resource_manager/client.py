@@ -33,6 +33,7 @@ class ResourceManagerClient:
             send_data(...)
     """
     def __init__(self, server_ip, server_port, _debug=False):
+        assert server_ip != "driver", "Invalid server_ip"  # Possible mistake when using flyemflows.
         self.server_ip = server_ip
         self.server_port = server_port
         self._debug = _debug
