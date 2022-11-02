@@ -1,4 +1,5 @@
 import os
+import json
 import threading
 from contextlib import closing, contextmanager
 
@@ -227,6 +228,14 @@ class _ResourceManagerClient:
         
         self._commsocket.send_json( req_data )
         response = self._recv_json_safe()
+        if 'invalid' in response:
+            config = self.read_config()
+            msg = (
+                "Cannot acquire access to the shared resource because "
+                "your request exceeds the server's config maximums.\n"
+                f"Config maximums: {json.dumps(config)}\n"
+                f"Your request: {json.dumps(req_data)}")
+            raise RuntimeError(msg)
         return (response["id"], response["available"])
     
     def _wait_for_acquire(self, request_id):
@@ -274,11 +283,11 @@ class _ResourceManagerClient:
                 self.request_id, success = self.client._attempt_acquire(self.resource_name, self.is_read, self.num_reqs, self.data_size)
                 if not success:
                     self.client._wait_for_acquire(self.request_id)
-            except:
+            except BaseException:
                 self.client._currently_accessing = False
                 raise
             return self
-        
+
         def __exit__(self, *_args):
             self.client._release(self.request_id)
             self.client._currently_accessing = False

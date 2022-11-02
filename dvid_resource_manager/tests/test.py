@@ -7,11 +7,16 @@ import unittest
 import threading
 import subprocess
 
+if __name__ == "__main__":
+    # Make sure we're using the local version of the library,
+    # not any installed version.
+    sys.path.insert(0, os.path.dirname(__file__) + '/../..')
+
 import dvid_resource_manager.server
 from dvid_resource_manager.client import ResourceManagerClient, TimeoutError
 from dvid_resource_manager.tests.helpers import _test_multiprocess
 
-SERVER_PORT = 3000
+SERVER_PORT = 3002
 
 def with_server(config_updates):
     """
@@ -153,8 +158,20 @@ class Test(unittest.TestCase):
         with unpickled_client.access_context( resource, False, 1, 1000 ):
             pass
  
+    @with_server({"read_data": 100})
+    def test_7_basic(self):
+        """
+        Request access to a resource.
+        """
+        resource = 'my-resource'
+        client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
+        with self.assertRaisesRegex(RuntimeError, "request exceeds"):
+            with client.access_context( resource, True, 1, 1000 ):
+                pass
+
+
     @with_server({})
-    def test_6_reconfigure(self):
+    def test_8_reconfigure(self):
         client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
         orig_config = client.read_config()
          
@@ -166,7 +183,7 @@ class Test(unittest.TestCase):
         assert client.read_config() == new_config
 
 
-    def test_7_timeout(self):
+    def test_9_timeout(self):
         client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
         try:
             client.read_config()
@@ -175,7 +192,7 @@ class Test(unittest.TestCase):
         raise AssertionError("Expected a timeout error")
 
     @with_server({"read_reqs": 2, "write_reqs": 2})
-    def test_multiproc(self):
+    def test_10_multiproc(self):
         client = ResourceManagerClient('127.0.0.1', SERVER_PORT, _debug=True)
         _test_multiprocess(client)
 

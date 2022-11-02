@@ -42,8 +42,8 @@ PUBDELAY = 2000 # ms
 DEFAULT_CONFIG = {
     "read_reqs": 128, # some multiple of the available worker threads in DVID
     "read_data": 1e12, # in bytes
-    "write_reqs": 96, # some multiple of the available worker threads in DVID
-    "write_data": 128 # in bytes
+    "write_reqs": 128, # some multiple of the available worker threads in DVID
+    "write_data": 1e12 # in bytes
 }
 
 def main():
@@ -152,7 +152,13 @@ class ResourceManagerServer(object):
                     # request for resource
                     request["id"] = clientid
                     clientid += 1
-                    if self.request_resource(request):
+
+                    # Check to see if the request is larger than the default maximums,
+                    # which would imply that it can NEVER be satisfied,
+                    # regardless of current resource usage levels.
+                    if not self.is_available(request, None):
+                        comm_socket.send_json({"available": False, "invalid": True, "id": request["id"]})
+                    elif self.request_resource(request):
                         # resource available
                         comm_socket.send_json({"available": True, "id": request["id"]})
                     else:
@@ -214,15 +220,20 @@ class ResourceManagerServer(object):
     
     # resource is not available if any of the resources are completely used
     # probably overly simplistic but usually calls are in batches of reads and writes separately
-    def is_available(self, request, curr_stats):
-        new_stats = copy.copy(curr_stats)
+    def is_available(self, request, curr_stats=None):
+        if curr_stats:
+            new_stats = copy.copy(curr_stats)
+        else:
+            # Useful for validating that the request doesn't
+            # exceed the original config maximums.
+            new_stats = ResourceManagerServer.ServerStats()
+
         if request["read"]:
             new_stats.read_reqs += request["numopts"]
             new_stats.read_data += request["datasize"]
         else:
             new_stats.write_reqs += request["numopts"]
             new_stats.write_data += request["datasize"]
-        
         return (    new_stats.read_reqs <= self.config["read_reqs"]
                 and new_stats.read_data <= self.config["read_data"]
                 and new_stats.write_reqs <= self.config["write_reqs"]
